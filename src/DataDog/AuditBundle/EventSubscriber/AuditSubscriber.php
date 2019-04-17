@@ -68,7 +68,7 @@ class AuditSubscriber implements EventSubscriber
     protected function canLogThat(string $actionName,array $data)
     {
         if(isset($this->logGates[$actionName])){
-            return ($this->logGates[$actionName])($data);
+            return $this->logGates[$actionName]->getCallback()($data);
         }
         return true;
     }
