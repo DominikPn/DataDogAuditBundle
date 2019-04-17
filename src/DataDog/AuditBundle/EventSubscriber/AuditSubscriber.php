@@ -19,6 +19,12 @@ use Doctrine\ORM\Event\OnFlushEventArgs;
 
 class AuditSubscriber implements EventSubscriber
 {
+    const ACTION_INSERT = 'insert';
+    const ACTION_UPDATE = 'update';
+    const ACTION_REMOVE = 'remove';
+    const ACTION_ASSOCIATE = 'associate';
+    const ACTION_DISSOCIATE = 'dissociate';
+
     protected $labeler;
 
     /**
@@ -43,12 +49,27 @@ class AuditSubscriber implements EventSubscriber
     protected $assocInsertStmt;
     protected $auditInsertStmt;
 
+    protected $logGates = [];
+
     /** @var UserInterface */
     protected $blameUser;
 
     public function __construct(TokenStorage $securityTokenStorage)
     {
         $this->securityTokenStorage = $securityTokenStorage;
+    }
+
+    public function addLogGate(string $actionName,callable $callable)
+    {
+        $this->logGates[$actionName] = $callable;
+    }
+
+    protected function canLogThat(string $actionName,array $data)
+    {
+        if(isset($this->logGates[$actionName])){
+            return ($this->logGates[$actionName])($data);
+        }
+        return true;
     }
 
     public function setLabeler(callable $labeler = null)
@@ -198,29 +219,57 @@ class AuditSubscriber implements EventSubscriber
             list($entity, $ch) = $entry;
             // the changeset might be updated from UOW extra updates
             $ch = array_merge($ch, $uow->getEntityChangeSet($entity));
-            $this->update($em, $entity, $ch);
+            if($this->canLogThat(self::ACTION_UPDATE,[
+                'entity' => $entity,
+                'ch'     => $ch
+            ])){
+                $this->update($em, $entity, $ch);
+            }
         }
 
         foreach ($this->inserted as $entry) {
             list($entity, $ch) = $entry;
             // the changeset might be updated from UOW extra updates
             $ch = array_merge($ch, $uow->getEntityChangeSet($entity));
-            $this->insert($em, $entity, $ch);
+            if($this->canLogThat(self::ACTION_INSERT,[
+                'entity' => $entity,
+                'ch'     => $ch
+            ])){
+                $this->insert($em, $entity, $ch);
+            }
         }
 
         foreach ($this->associated as $entry) {
             list($source, $target, $mapping) = $entry;
-            $this->associate($em, $source, $target, $mapping);
+            if($this->canLogThat(self::ACTION_ASSOCIATE,[
+                'source'    => $source,
+                'target'    => $target,
+                'mapping'   => $mapping
+            ])){
+                $this->associate($em, $source, $target, $mapping);
+            }
         }
 
         foreach ($this->dissociated as $entry) {
             list($source, $target, $id, $mapping) = $entry;
-            $this->dissociate($em, $source, $target, $id, $mapping);
+            if($this->canLogThat(self::ACTION_DISSOCIATE,[
+                'source'    => $source,
+                'target'    => $target,
+                'mapping'   => $mapping,
+                'id'        => $id
+            ])){
+                $this->dissociate($em, $source, $target, $id, $mapping);
+            }
         }
 
         foreach ($this->removed as $entry) {
             list($entity, $id) = $entry;
-            $this->remove($em, $entity, $id);
+            if($this->canLogThat(self::ACTION_REMOVE,[
+                'entity' => $entity,
+                'id'     => $id
+            ])){
+                $this->remove($em, $entity, $id);
+            }
         }
 
         $this->inserted = [];
