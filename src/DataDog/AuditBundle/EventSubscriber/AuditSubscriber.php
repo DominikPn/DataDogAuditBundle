@@ -2,6 +2,7 @@
 
 namespace DataDog\AuditBundle\EventSubscriber;
 
+use DataDog\AuditBundle\Contracts\LogGate;
 use DataDog\AuditBundle\DBAL\AuditLogger;
 use DataDog\AuditBundle\Entity\AuditLog;
 use DataDog\AuditBundle\Entity\Association;
@@ -59,9 +60,9 @@ class AuditSubscriber implements EventSubscriber
         $this->securityTokenStorage = $securityTokenStorage;
     }
 
-    public function addLogGate(string $actionName,callable $callable)
+    public function addLogGate(string $actionName,LogGate $logGate)
     {
-        $this->logGates[$actionName] = $callable;
+        $this->logGates[$actionName] = $logGate;
     }
 
     protected function canLogThat(string $actionName,array $data)

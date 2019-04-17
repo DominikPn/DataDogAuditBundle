@@ -12,7 +12,9 @@ namespace DataDog\AuditBundle\Contracts;
 interface LogGate
 {
     /**
+     * Must return function that return true or false
+     * 
      * @return callable
      */
-    public function getCallback():callable ;
+    public function getCallback():callable;
 }
