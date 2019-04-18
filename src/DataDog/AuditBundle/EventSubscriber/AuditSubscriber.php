@@ -2,11 +2,13 @@
 
 namespace DataDog\AuditBundle\EventSubscriber;
 
+use DataDog\AuditBundle\Contracts\Labeler;
 use DataDog\AuditBundle\Contracts\LogGate;
 use DataDog\AuditBundle\DBAL\AuditLogger;
 use DataDog\AuditBundle\Entity\AuditLog;
 use DataDog\AuditBundle\Entity\Association;
 
+use DataDog\AuditBundle\Labeler\DefaultLabeler;
 use Symfony\Component\Security\Core\Authentication\Token\Storage\TokenStorage;
 use Symfony\Component\Security\Core\User\UserInterface;
 use Doctrine\DBAL\Types\Type;
@@ -26,6 +28,7 @@ class AuditSubscriber implements EventSubscriber
     const ACTION_ASSOCIATE = 'associate';
     const ACTION_DISSOCIATE = 'dissociate';
 
+    /** @var Labeler */
     protected $labeler;
 
     /**
@@ -73,7 +76,7 @@ class AuditSubscriber implements EventSubscriber
         return true;
     }
 
-    public function setLabeler(callable $labeler = null)
+    public function setLabeler(Labeler $labeler = null)
     {
         $this->labeler = $labeler;
         return $this;
@@ -472,21 +475,12 @@ class AuditSubscriber implements EventSubscriber
 
     protected function label(EntityManager $em, $entity)
     {
-        if (is_callable($this->labeler)) {
-            return call_user_func($this->labeler, $entity);
-        }
-        $meta = $em->getClassMetadata(get_class($entity));
-        switch (true) {
-        case $meta->hasField('title'):
-            return $meta->getReflectionProperty('title')->getValue($entity);
-        case $meta->hasField('name'):
-            return $meta->getReflectionProperty('name')->getValue($entity);
-        case $meta->hasField('label'):
-            return $meta->getReflectionProperty('label')->getValue($entity);
-        case $meta->getReflectionClass()->hasMethod('__toString'):
-            return (string)$entity;
-        default:
-            return "Unlabeled";
+        if ($this->labeler != null) {
+            return $this->labeler->getLabel($entity);
+        }else{
+            $defaultLabeler = new DefaultLabeler();
+            $defaultLabeler->setEm($em);
+            return $defaultLabeler->getLabel($entity);
         }
     }
 
